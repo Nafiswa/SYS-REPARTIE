@@ -22,8 +22,14 @@ public class JvnException extends Exception {
 	}
 	
 	public JvnException(String message) {
+		super(message);
 		this.message = message;
 	}	
+	
+	public JvnException(String message, Throwable cause) {
+		super(message, cause);
+		this.message = message;
+	}
   
 	public String getMessage(){
 		return message;

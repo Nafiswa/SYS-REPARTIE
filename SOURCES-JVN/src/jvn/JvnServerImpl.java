@@ -1,7 +1,7 @@
 /***
  * JAVANAISE Implementation
  * JvnServerImpl class
- * Implementation of a Jvn server
+ * Implementation of a JVN server
  * Contact: 
  *
  * Authors: 
@@ -9,151 +9,173 @@
 
 package jvn;
 
+import java.io.Serializable;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
-import java.io.*;
+import java.util.concurrent.ConcurrentHashMap;
 
-
-
-public class JvnServerImpl 	
-              extends UnicastRemoteObject 
-							implements JvnLocalServer, JvnRemoteServer{ 
-	
-  /**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
-	// A JVN server is managed as a singleton  
-	private static JvnServerImpl js = null;
-
-  /**
-  * Default constructor
-  * @throws JvnException
-  **/
-	private JvnServerImpl() throws Exception {
-		super();
-		// to be completed
-	}
-	
-  /**
-    * Static method allowing an application to get a reference to 
-    * a JVN server instance
-    * @throws JvnException
-    **/
-	public static JvnServerImpl jvnGetServer() {
-		if (js == null){
-			try {
-				js = new JvnServerImpl();
-			} catch (Exception e) {
-				return null;
-			}
-		}
-		return js;
-	}
-	
-	/**
-	* The JVN service is not used anymore
-	* @throws JvnException
-	**/
-	public  void jvnTerminate()
-	throws jvn.JvnException {
-    // to be completed 
-	} 
-	
-	/**
-	* creation of a JVN object
-	* @param o : the JVN object state
-	* @throws JvnException
-	**/
-	public  JvnObject jvnCreateObject(Serializable o)
-	throws jvn.JvnException { 
-		// to be completed 
-		return null; 
-	}
-	
-	/**
-	*  Associate a symbolic name with a JVN object
-	* @param jon : the JVN object name
-	* @param jo : the JVN object 
-	* @throws JvnException
-	**/
-	public  void jvnRegisterObject(String jon, JvnObject jo)
-	throws jvn.JvnException {
-		// to be completed 
-	}
-	
-	/**
-	* Provide the reference of a JVN object beeing given its symbolic name
-	* @param jon : the JVN object name
-	* @return the JVN object 
-	* @throws JvnException
-	**/
-	public  JvnObject jvnLookupObject(String jon)
-	throws jvn.JvnException {
-    // to be completed 
-		return null;
-	}	
-	
-	/**
-	* Get a Read lock on a JVN object 
-	* @param joi : the JVN object identification
-	* @return the current JVN object state
-	* @throws  JvnException
-	**/
-   public Serializable jvnLockRead(int joi)
-	 throws JvnException {
-		// to be completed 
-		return null;
-
-	}	
-	/**
-	* Get a Write lock on a JVN object 
-	* @param joi : the JVN object identification
-	* @return the current JVN object state
-	* @throws  JvnException
-	**/
-   public Serializable jvnLockWrite(int joi)
-	 throws JvnException {
-		// to be completed 
-		return null;
-	}	
-
-	
-  /**
-	* Invalidate the Read lock of the JVN object identified by id 
-	* called by the JvnCoord
-	* @param joi : the JVN object id
-	* @return void
-	* @throws java.rmi.RemoteException,JvnException
-	**/
-  public void jvnInvalidateReader(int joi)
-	throws java.rmi.RemoteException,jvn.JvnException {
-		// to be completed 
-	};
-	    
-	/**
-	* Invalidate the Write lock of the JVN object identified by id 
-	* @param joi : the JVN object id
-	* @return the current JVN object state
-	* @throws java.rmi.RemoteException,JvnException
-	**/
-  public Serializable jvnInvalidateWriter(int joi)
-	throws java.rmi.RemoteException,jvn.JvnException { 
-		// to be completed 
-		return null;
-	};
-	
-	/**
-	* Reduce the Write lock of the JVN object identified by id 
-	* @param joi : the JVN object id
-	* @return the current JVN object state
-	* @throws java.rmi.RemoteException,JvnException
-	**/
-   public Serializable jvnInvalidateWriterForReader(int joi)
-	 throws java.rmi.RemoteException,jvn.JvnException { 
-		// to be completed 
-		return null;
-	 };
-
+public class JvnServerImpl extends UnicastRemoteObject implements JvnRemoteServer, JvnLocalServer {
+    private static JvnServerImpl instance;
+    private JvnRemoteCoord coordinator;
+    private ConcurrentHashMap<Integer, JvnObjectImpl> localObjects = new ConcurrentHashMap<>();
+    private final String serverId;
+    
+    private JvnServerImpl() throws RemoteException {
+        super();
+        
+        // Générer un identifiant unique pour ce serveur
+        this.serverId = "Server-" + System.currentTimeMillis() + "-" + System.nanoTime();
+        
+        // Lire la configuration RMI depuis les propriétés système
+        final String host = System.getProperty("jvn.registry.host", "127.0.0.1");
+        final int port = Integer.getInteger("jvn.registry.port", 1099);
+        
+        // Forcer l'IP locale pour éviter les soucis de résolution
+        if (System.getProperty("java.rmi.server.hostname") == null) {
+            System.setProperty("java.rmi.server.hostname", host);
+        }
+        
+        System.out.println("SERVER: Tentative de connexion au coordinateur sur " + host + ":" + port);
+        
+        Exception last = null;
+        for (int i = 0; i < 15; i++) { // Augmentation du nombre de tentatives
+            try {
+                Registry registry = LocateRegistry.getRegistry(host, port);
+                coordinator = (JvnRemoteCoord) registry.lookup("JvnCoordinator");
+                System.out.println("SERVER: Connecté au coordinateur");
+                return;
+            } catch (Exception e) {
+                last = e;
+                System.out.println("SERVER: Tentative " + (i+1) + " échouée, nouvelle tentative dans 1s...");
+                try { Thread.sleep(1000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+            }
+        }
+        
+        if (last != null) {
+            System.err.println("SERVER: Échec de connexion après 15 tentatives");
+            throw new RemoteException("Impossible de se connecter au coordinateur après plusieurs tentatives", last);
+        }
+    }
+    
+    public static synchronized JvnServerImpl jvnGetServer() {
+        if (instance == null) {
+            try {
+                instance = new JvnServerImpl();
+            } catch (RemoteException e) {
+                throw new RuntimeException("Erreur création serveur JVN", e);
+            }
+        }
+        return instance;
+    }
+    
+    @Override
+    public JvnObject jvnCreateObject(Serializable jos) throws JvnException {
+        try {
+            int objectId = coordinator.jvnGetObjectId();
+            JvnObjectImpl jvnObj = new JvnObjectImpl(objectId, jos, this);
+            localObjects.put(objectId, jvnObj);
+            return jvnObj;
+        } catch (RemoteException e) {
+            throw new JvnException("Erreur communication coordinateur", e);
+        }
+    }
+    
+    @Override
+    public void jvnRegisterObject(String jon, JvnObject jo) throws JvnException {
+        try {
+            coordinator.jvnRegisterObject(jon, jo, this);
+        } catch (RemoteException e) {
+            throw new JvnException("Erreur enregistrement objet", e);
+        }
+    }
+    
+    @Override
+    public JvnObject jvnLookupObject(String jon) throws JvnException {
+        try {
+            // Récupérer l'ID de l'objet existant depuis le coordinateur
+            JvnObject existingObject = coordinator.jvnLookupObject(jon, this);
+            if (existingObject != null) {
+                // Si l'objet est trouvé, créer une instance locale avec le même ID
+                int existingId = existingObject.jvnGetObjectId();
+                System.out.println("SERVER: Objet '" + jon + "' trouvé avec ID " + existingId);
+                
+                // Créer une nouvelle instance locale en état NL
+                // Cela force chaque appel à jvnLookupObject à demander des verrous au coordinateur
+                JvnObjectImpl newJvnObj = new JvnObjectImpl(existingId, null, this);
+                
+                // Stocker dans localObjects SEULEMENT pour les invalidations du coordinateur
+                // mais chaque appel à jvnLookupObject retourne une nouvelle instance
+                localObjects.put(existingId, newJvnObj);
+                return newJvnObj;
+            }
+            throw new JvnException("Objet non trouvé: " + jon);
+        } catch (RemoteException e) {
+            throw new JvnException("Erreur lors de la recherche de l'objet: " + jon, e);
+        }
+    }
+    
+    // Méthodes appelées par les objets JVN pour demander des verrous
+    public Serializable jvnLockRead(int joi) throws JvnException {
+        try {
+            return coordinator.jvnLockRead(joi, this);
+        } catch (RemoteException e) {
+            throw new JvnException("Erreur demande verrou lecture", e);
+        }
+    }
+    
+    public Serializable jvnLockWrite(int joi) throws JvnException {
+        try {
+            return coordinator.jvnLockWrite(joi, this);
+        } catch (RemoteException e) {
+            throw new JvnException("Erreur demande verrou écriture", e);
+        }
+    }
+    
+    @Override
+    public void jvnTerminate() throws JvnException {
+        try {
+            coordinator.jvnTerminate(this);
+        } catch (RemoteException e) {
+            throw new JvnException("Erreur lors de la terminaison", e);
+        }
+    }
+    
+    // Méthodes JvnRemoteServer (appelées par le coordinateur)
+    @Override
+    public void jvnInvalidateReader(int joi) throws RemoteException, JvnException {
+        System.out.println("🔄 SERVER: Reçu invalidation LECTURE objet " + joi);
+        JvnObjectImpl obj = localObjects.get(joi);
+        if (obj != null) {
+            obj.jvnInvalidateReader();
+        }
+    }
+    
+    @Override
+    public Serializable jvnInvalidateWriter(int joi) throws RemoteException, JvnException {
+        System.out.println("🔄 SERVER: Reçu invalidation ÉCRITURE objet " + joi);
+        JvnObjectImpl obj = localObjects.get(joi);
+        if (obj != null) {
+            return obj.jvnInvalidateWriter();
+        }
+        return null;
+    }
+    
+    @Override
+    public Serializable jvnInvalidateWriterForReader(int joi) throws RemoteException, JvnException {
+        System.out.println("🔄 SERVER: Reçu réduction ÉCRITURE→LECTURE objet " + joi);
+        JvnObjectImpl obj = localObjects.get(joi);
+        if (obj != null) {
+            return obj.jvnInvalidateWriterForReader();
+        }
+        return null;
+    }
+    
+    @Override
+    public String getServerId() throws RemoteException {
+        return this.serverId;
+    }
 }
 
- 
+

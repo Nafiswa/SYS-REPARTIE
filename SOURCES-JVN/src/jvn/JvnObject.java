@@ -7,7 +7,7 @@
 
 package jvn; 
 
-import java.io.*;
+import java.io.Serializable;
 
 /**
  * Interface of a JVN object. 
