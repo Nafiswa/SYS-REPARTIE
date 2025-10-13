@@ -115,6 +115,7 @@ public class JvnObjectImpl implements JvnObject {
                 throw new JvnException("État invalide pour la libération du verrou: " + lockState);
         }
         
+        // IMPORTANT: notifier les threads en attente d'invalidation
         if (oldState != lockState) {
             notifyAll();
         }
@@ -137,10 +138,42 @@ public class JvnObjectImpl implements JvnObject {
     public synchronized void jvnInvalidateReader() throws JvnException {
         switch (lockState) {
             case RLC:
-            case RLT:
+                // Verrou en cache, invalidation immédiate
                 lockState = LockState.NL;
-                System.out.println("❌ CLIENT: LECTURE invalidée objet " + jvnObjectId);
-                notifyAll();
+                System.out.println("❌ CLIENT: LECTURE (cache) invalidée objet " + jvnObjectId);
+                break;
+            case RLT:
+                // Verrou de lecture ACTIF - attendre la fin de la lecture
+                while (lockState == LockState.RLT) {
+                    try {
+                        System.out.println("⏳ CLIENT: Attente fin de lecture objet " + jvnObjectId);
+                        wait(); // Attendre que jvnUnLock() libère la lecture
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new JvnException("Interruption pendant l'attente de fin de lecture", e);
+                    }
+                }
+                // Après jvnUnLock(), on passe de RLT → RLC, puis on invalide
+                if (lockState == LockState.RLC) {
+                    lockState = LockState.NL;
+                    System.out.println("❌ CLIENT: LECTURE invalidée (après attente) objet " + jvnObjectId);
+                }
+                break;
+            case RLT_WLC:
+                // Attendre que la lecture se termine
+                while (lockState == LockState.RLT_WLC) {
+                    try {
+                        System.out.println("⏳ CLIENT: Attente fin de lecture (RLT_WLC) objet " + jvnObjectId);
+                        wait();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new JvnException("Interruption pendant l'attente de fin de lecture", e);
+                    }
+                }
+                // Après jvnUnLock(), on passe de RLT_WLC → WLC, garde juste le cache d'écriture
+                if (lockState == LockState.WLC) {
+                    System.out.println("❌ CLIENT: LECTURE invalidée (garde écriture) objet " + jvnObjectId);
+                }
                 break;
             default:
                 // Pas de verrou de lecture à invalider

@@ -13,12 +13,13 @@ public class TestIrcJvnManual {
         System.out.println("=== " + clientName + " Javanaise Interactif ===");
         System.out.println("Objet JVN: " + objectName);
         System.out.println("Commandes disponibles:");
-        System.out.println("  r      - Lire le contenu");
-        System.out.println("  w TEXT - Écrire TEXT");
-        System.out.println("  long TEXT SECONDS - Écriture longue avec verrou pendant SECONDS secondes");
+        System.out.println("  r         - Lire le contenu");
+        System.out.println("  r SECONDS - Lecture longue pendant SECONDS secondes");
+        System.out.println("  w TEXT    - Écrire TEXT");
+        System.out.println("  w TEXT SECONDS - Écriture longue avec verrou pendant SECONDS secondes");
         System.out.println("  obj NOUVEAU_NOM - Changer d'objet");
-        System.out.println("  info   - Afficher info sur l'objet actuel");
-        System.out.println("  q      - Quitter");
+        System.out.println("  info      - Afficher info sur l'objet actuel");
+        System.out.println("  q         - Quitter");
         System.out.println();
         
         try {
@@ -43,48 +44,65 @@ public class TestIrcJvnManual {
                             
                         case "r":
                         case "read":
-                            String content = sentence.read();
-                            System.out.println("Contenu lu: '" + content + "'");
+                            if (parts.length == 1) {
+                                // Lecture simple
+                                String content = sentence.read();
+                                System.out.println("Contenu lu: '" + content + "'");
+                            } else if (parts.length == 2) {
+                                // Lecture longue avec durée
+                                try {
+                                    int seconds = Integer.parseInt(parts[1]);
+                                    System.out.println("Début de la lecture longue (" + seconds + "s)...");
+                                    String content = sentence.simulateLongReadOperation(seconds * 1000);
+                                    System.out.println("Contenu lu (après " + seconds + "s): '" + content + "'");
+                                } catch (NumberFormatException e) {
+                                    System.out.println("Usage: r <secondes> (nombre entier)");
+                                }
+                            } else {
+                                System.out.println("Usage: r [secondes]");
+                            }
                             break;
                             
                         case "w":
                         case "write":
                             if (parts.length < 2) {
-                                System.out.println("Usage: w <texte>");
+                                System.out.println("Usage: w <texte> [secondes]");
                                 break;
                             }
+                            
+                            // Vérifier si le dernier argument est un nombre (durée)
+                            String[] wParts = input.split("\\s+");
+                            if (wParts.length >= 3) {
+                                try {
+                                    // Essayer de parser le dernier élément comme un nombre
+                                    String lastPart = wParts[wParts.length - 1];
+                                    int seconds = Integer.parseInt(lastPart);
+                                    
+                                    // Reconstituer le texte (tout sauf le dernier élément)
+                                    StringBuilder textBuilder = new StringBuilder();
+                                    for (int i = 1; i < wParts.length - 1; i++) {
+                                        if (i > 1) textBuilder.append(" ");
+                                        textBuilder.append(wParts[i]);
+                                    }
+                                    String longText = textBuilder.toString();
+                                    
+                                    // Écriture longue
+                                    System.out.println("Début de l'écriture longue (" + seconds + "s)...");
+                                    sentence.simulateLongWriteOperation(longText, seconds * 1000);
+                                    System.out.println("Écriture longue terminée.");
+                                    break;
+                                } catch (NumberFormatException e) {
+                                    // Le dernier élément n'est pas un nombre, traiter comme texte normal
+                                }
+                            }
+                            
+                            // Écriture simple
                             String text = input.substring(input.indexOf(' ') + 1);
                             sentence.write(text);
                             System.out.println("Texte écrit: '" + text + "'");
                             break;
                             
-                        case "long":
-                            // Parser différemment pour gérer les guillemets
-                            String[] longParts = input.split("\\s+");
-                            if (longParts.length < 3) {
-                                System.out.println("Usage: long <texte> <secondes>");
-                                System.out.println("Exemple: long Hello 10");
-                                System.out.println("Exemple: long \"Hello world\" 10");
-                                break;
-                            }
-                            
-                            // Trouver le dernier élément comme nombre de secondes
-                            String secondsStr = longParts[longParts.length - 1].replaceAll("['\"]", "");
-                            
-                            // Reconstituer le texte (tout sauf le dernier élément)
-                            StringBuilder textBuilder = new StringBuilder();
-                            for (int i = 1; i < longParts.length - 1; i++) {
-                                if (i > 1) textBuilder.append(" ");
-                                textBuilder.append(longParts[i]);
-                            }
-                            String longText = textBuilder.toString().replaceAll("^\"|\"$|^'|'$", "");
-                            
-                            int seconds = Integer.parseInt(secondsStr);
-                            System.out.println("Début de l'écriture longue (" + seconds + "s)...");
-                            sentence.simulateLongWriteOperation(longText, seconds * 1000);
-                            System.out.println("Écriture longue terminée.");
-                            break;
-                            
+
                         case "obj":
                         case "object":
                             if (parts.length < 2) {

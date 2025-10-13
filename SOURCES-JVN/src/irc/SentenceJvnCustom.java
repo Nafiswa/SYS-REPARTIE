@@ -84,6 +84,32 @@ public class SentenceJvnCustom implements Serializable {
         }
     }
     
+    /**
+     * Simule une opération de lecture longue qui garde le verrou pendant toute la durée
+     */
+    public String simulateLongReadOperation(long durationMs) throws JvnException {
+        System.out.println("⏳ CLIENT: Début lecture LONGUE (" + durationMs/1000 + "s) sur " + objectName);
+        
+        jvnSentence.jvnLockRead();
+        try {
+            Sentence sentence = (Sentence) jvnSentence.jvnGetSharedObject();
+            String result = sentence.read();
+            System.out.println("📖 CLIENT: Lu '" + result + "' - GARDE LE VERROU...");
+            
+            try {
+                Thread.sleep(durationMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new JvnException("Interruption pendant la lecture longue", e);
+            }
+            
+            System.out.println("✅ CLIENT: Lecture longue TERMINÉE sur " + objectName);
+            return result;
+        } finally {
+            jvnSentence.jvnUnLock();
+        }
+    }
+    
     public String getObjectName() {
         return objectName;
     }
