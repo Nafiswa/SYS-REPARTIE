@@ -6,11 +6,14 @@ import jvn.JvnLocalServer;
 import jvn.JvnObject;
 import jvn.JvnServerImpl;
 import jvn.JvnObjectImpl;
+import annotation.Read;
+import annotation.Write;
+
 
 /**
  * Version JVN de Sentence pour démonstration
  */
-public class SentenceJvn implements Serializable {
+public class SentenceJvn implements AnnotationSentence,Serializable {
     private JvnObject jvnSentence;
     private JvnLocalServer jvnServer;
     
@@ -42,34 +45,23 @@ public class SentenceJvn implements Serializable {
             System.out.println("Nouvelle Sentence JVN créée et enregistrée avec ID: " + jvnSentence.jvnGetObjectId());
         }
     }
-    
+    @Write
     public void write(String text) throws JvnException {
         System.out.println("CLIENT: Demande écriture - '" + text + "'");
         
         // Version 1 : Gestion explicite des verrous
-        jvnSentence.jvnLockWrite();
-        try {
             Sentence sentence = (Sentence) jvnSentence.jvnGetSharedObject();
             sentence.write(text);
             System.out.println("CLIENT: Écriture effectuée");
-        } finally {
-            jvnSentence.jvnUnLock();
-        }
     }
-    
+    @Read
     public String read() throws JvnException {
         System.out.println("CLIENT: Demande lecture");
         
-        // Version 1 : Gestion explicite des verrous
-        jvnSentence.jvnLockRead();
-        try {
             Sentence sentence = (Sentence) jvnSentence.jvnGetSharedObject();
             String result = sentence.read();
             System.out.println("CLIENT: Lecture effectuée - '" + result + "'");
             return result;
-        } finally {
-            jvnSentence.jvnUnLock();
-        }
     }
     
     /**

@@ -76,7 +76,8 @@ public class JvnServerImpl extends UnicastRemoteObject implements JvnRemoteServe
             int objectId = coordinator.jvnGetObjectId();
             JvnObjectImpl jvnObj = new JvnObjectImpl(objectId, jos, this);
             localObjects.put(objectId, jvnObj);
-            return jvnObj;
+            //return jvnObj;
+            return (JvnObject) JvnProxy.newInstance(jvnObj);
         } catch (RemoteException e) {
             throw new JvnException("Erreur communication coordinateur", e);
         }
@@ -108,7 +109,7 @@ public class JvnServerImpl extends UnicastRemoteObject implements JvnRemoteServe
                 // Stocker dans localObjects SEULEMENT pour les invalidations du coordinateur
                 // mais chaque appel à jvnLookupObject retourne une nouvelle instance
                 localObjects.put(existingId, newJvnObj);
-                return newJvnObj;
+                return (JvnObject) JvnProxy.newInstance(newJvnObj);
             }
             throw new JvnException("Objet non trouvé: " + jon);
         } catch (RemoteException e) {

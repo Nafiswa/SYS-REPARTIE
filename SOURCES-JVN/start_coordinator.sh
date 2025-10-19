@@ -11,7 +11,7 @@ sleep 1
 
 # Compiler si nécessaire
 echo "Compilation..."
-javac -d bin src/jvn/*.java src/irc/*.java src/*.java
+javac -d bin src/annotation/*.java src/jvn/*.java src/irc/*.java src/*.java
 
 # Configuration RMI
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -24,6 +24,7 @@ java -cp "$SCRIPT_DIR/bin" \
      -Djava.rmi.server.hostname=127.0.0.1 \
      -Djvn.registry.host=127.0.0.1 \
      -Djvn.registry.port=1099 \
+     -Djvn.debug=true \
      JvnCoordLauncher
 
 echo "Coordinateur arrêté."
