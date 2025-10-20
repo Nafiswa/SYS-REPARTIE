@@ -103,9 +103,9 @@ public class JvnServerImpl extends UnicastRemoteObject implements JvnRemoteServe
                 int existingId = existingObject.jvnGetObjectId();
                 System.out.println("SERVER: Objet '" + jon + "' trouvé avec ID " + existingId);
                 
-                // Créer une nouvelle instance locale avec l'objet initial
-                // Le lock initial n'est pas nécessaire car le proxy s'en chargera
-                JvnObjectImpl newJvnObj = new JvnObjectImpl(existingId, new Sentence(), this);
+                // Créer une nouvelle instance locale en état NL (pas de copie locale)
+                // Cela force la récupération de l'objet au premier verrou
+                JvnObjectImpl newJvnObj = new JvnObjectImpl(existingId, null, this);
                 
                 // Stocker dans localObjects pour les invalidations du coordinateur
                 localObjects.put(existingId, newJvnObj);
