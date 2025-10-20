@@ -2,119 +2,83 @@ package irc;
 
 import java.io.Serializable;
 import jvn.JvnException;
-import jvn.JvnLocalServer;
-import jvn.JvnObject;
 import jvn.JvnServerImpl;
+import jvn.JvnObject;
+import annotation.Read;
+import annotation.Write;
 
 /**
- * Version JVN de Sentence configurable avec nom d'objet personnalisé
+ * Version JVN de Sentence configurable avec nom d'objet personnalisé utilisant les annotations et proxy
  */
-public class SentenceJvnCustom implements Serializable {
-    private JvnObject jvnSentence;
-    private JvnLocalServer jvnServer;
-    private String objectName;
+public class SentenceJvnCustom implements ISentenceJvnCustom, Serializable {
+    private static final long serialVersionUID = 1L;
+    private String data;
     
-    public SentenceJvnCustom(String objectName) throws JvnException {
-        this.objectName = objectName;
-        // Récupérer le serveur JVN
-        jvnServer = JvnServerImpl.jvnGetServer();
-        
+    public SentenceJvnCustom() {
+        this.data = "";
+    }
+
+    public static ISentenceJvnCustom createInstance(String objectName) throws JvnException {
         try {
-            // Essayer d'abord de récupérer l'objet s'il existe déjà
-            jvnSentence = jvnServer.jvnLookupObject(objectName);
-            // L'objet existe - PAS de verrou automatique pour éviter les invalidations
-            System.out.println("Objet JVN '" + objectName + "' existant récupéré avec ID: " + jvnSentence.jvnGetObjectId());
+            // Essayer d'abord de récupérer l'objet existant
+            JvnObject obj = JvnServerImpl.jvnGetServer().jvnLookupObject(objectName);
+            if (obj != null) {
+                Serializable sharedObj = obj.jvnGetSharedObject();
+                if (sharedObj instanceof ISentenceJvnCustom) {
+                    return (ISentenceJvnCustom) sharedObj;
+                }
+            }
+            
+            // L'objet n'existe pas ou n'est pas du bon type, on le crée
+            SentenceJvnCustom sentence = new SentenceJvnCustom();
+            obj = JvnServerImpl.jvnGetServer().jvnCreateObject(sentence);
+            JvnServerImpl.jvnGetServer().jvnRegisterObject(objectName, obj);
+            return sentence;
         } catch (JvnException e) {
-            if (!e.getMessage().contains("non trouvé")) {
-                throw e;
-            }
-            // Si l'objet n'existe pas, le créer et l'enregistrer
-            Sentence sentence = new Sentence();
-            jvnSentence = jvnServer.jvnCreateObject(sentence);
-            jvnServer.jvnRegisterObject(objectName, jvnSentence);
-            System.out.println("Nouvel objet JVN '" + objectName + "' créé et enregistré avec ID: " + jvnSentence.jvnGetObjectId());
+            throw new JvnException("Erreur lors de la création/récupération de l'objet JVN", e);
         }
     }
-    
-    public void write(String text) throws JvnException {
-        jvnSentence.jvnLockWrite();
-        try {
-            Sentence sentence = (Sentence) jvnSentence.jvnGetSharedObject();
-            sentence.write(text);
-            System.out.println("📝 CLIENT: Écrit '" + text + "' sur " + objectName);
-        } finally {
-            jvnSentence.jvnUnLock();
-        }
+
+    @Write
+    public void write(String text) {
+        this.data = text;
+        System.out.println("📝 CLIENT: Écrit '" + text + "'");
     }
-    
-    public String read() throws JvnException {
-        jvnSentence.jvnLockRead();
-        try {
-            Sentence sentence = (Sentence) jvnSentence.jvnGetSharedObject();
-            String result = sentence.read();
-            System.out.println("📖 CLIENT: Lu '" + result + "' sur " + objectName);
-            return result;
-        } finally {
-            jvnSentence.jvnUnLock();
-        }
+
+    @Read
+    public String read() {
+        System.out.println("📖 CLIENT: Lu '" + data + "'");
+        return data;
     }
-    
-    /**
-     * Simule une opération d'écriture longue qui garde le verrou pendant toute la durée
-     */
+
+    @Write
     public void simulateLongWriteOperation(String text, long durationMs) throws JvnException {
-        System.out.println("⏳ CLIENT: Début traitement LONG (" + durationMs/1000 + "s) sur " + objectName);
+        System.out.println("⏳ CLIENT: Début traitement LONG (" + durationMs/1000 + "s)");
+        write(text);
+        System.out.println("📝 CLIENT: Écrit '" + text + "' - Simulation longue opération...");
         
-        jvnSentence.jvnLockWrite();
         try {
-            Sentence sentence = (Sentence) jvnSentence.jvnGetSharedObject();
-            sentence.write(text);
-            System.out.println("📝 CLIENT: Écrit '" + text + "' - GARDE LE VERROU...");
-            
-            try {
-                Thread.sleep(durationMs);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new JvnException("Interruption pendant le traitement long", e);
-            }
-            
-            System.out.println("✅ CLIENT: Traitement long TERMINÉ sur " + objectName);
-        } finally {
-            jvnSentence.jvnUnLock();
+            Thread.sleep(durationMs);
+            System.out.println("✅ CLIENT: Traitement long TERMINÉ");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new JvnException("Interruption pendant le traitement long", e);
         }
     }
-    
-    /**
-     * Simule une opération de lecture longue qui garde le verrou pendant toute la durée
-     */
+
+    @Read
     public String simulateLongReadOperation(long durationMs) throws JvnException {
-        System.out.println("⏳ CLIENT: Début lecture LONGUE (" + durationMs/1000 + "s) sur " + objectName);
+        System.out.println("⏳ CLIENT: Début lecture LONGUE (" + durationMs/1000 + "s)");
+        String result = read();
+        System.out.println("📖 CLIENT: Lu '" + result + "' - Simulation longue opération...");
         
-        jvnSentence.jvnLockRead();
         try {
-            Sentence sentence = (Sentence) jvnSentence.jvnGetSharedObject();
-            String result = sentence.read();
-            System.out.println("📖 CLIENT: Lu '" + result + "' - GARDE LE VERROU...");
-            
-            try {
-                Thread.sleep(durationMs);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new JvnException("Interruption pendant la lecture longue", e);
-            }
-            
-            System.out.println("✅ CLIENT: Lecture longue TERMINÉE sur " + objectName);
+            Thread.sleep(durationMs);
+            System.out.println("✅ CLIENT: Lecture longue TERMINÉE");
             return result;
-        } finally {
-            jvnSentence.jvnUnLock();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new JvnException("Interruption pendant la lecture longue", e);
         }
-    }
-    
-    public String getObjectName() {
-        return objectName;
-    }
-    
-    public int getObjectId() throws JvnException {
-        return jvnSentence.jvnGetObjectId();
     }
 }

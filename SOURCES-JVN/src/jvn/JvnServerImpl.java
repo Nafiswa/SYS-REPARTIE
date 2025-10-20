@@ -15,6 +15,7 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.concurrent.ConcurrentHashMap;
+import irc.Sentence;
 
 public class JvnServerImpl extends UnicastRemoteObject implements JvnRemoteServer, JvnLocalServer {
     private static JvnServerImpl instance;
@@ -102,12 +103,11 @@ public class JvnServerImpl extends UnicastRemoteObject implements JvnRemoteServe
                 int existingId = existingObject.jvnGetObjectId();
                 System.out.println("SERVER: Objet '" + jon + "' trouvé avec ID " + existingId);
                 
-                // Créer une nouvelle instance locale en état NL
-                // Cela force chaque appel à jvnLookupObject à demander des verrous au coordinateur
-                JvnObjectImpl newJvnObj = new JvnObjectImpl(existingId, null, this);
+                // Créer une nouvelle instance locale avec l'objet initial
+                // Le lock initial n'est pas nécessaire car le proxy s'en chargera
+                JvnObjectImpl newJvnObj = new JvnObjectImpl(existingId, new Sentence(), this);
                 
-                // Stocker dans localObjects SEULEMENT pour les invalidations du coordinateur
-                // mais chaque appel à jvnLookupObject retourne une nouvelle instance
+                // Stocker dans localObjects pour les invalidations du coordinateur
                 localObjects.put(existingId, newJvnObj);
                 return (JvnObject) JvnProxy.newInstance(newJvnObj);
             }

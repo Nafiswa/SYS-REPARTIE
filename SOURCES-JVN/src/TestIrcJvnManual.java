@@ -1,9 +1,13 @@
 import java.util.Scanner;
 import jvn.JvnException;
 import jvn.JvnServerImpl;
+import jvn.JvnObject;
+import jvn.JvnProxy;
+import irc.AnnotationSentence;
+import irc.Sentence;
 
 /**
- * Test interactif pour Javanaise - un seul client
+ * Test interactif pour Javanaise avec l'objet Sentence
  */
 public class TestIrcJvnManual {
     public static void main(String[] args) {
@@ -22,10 +26,22 @@ public class TestIrcJvnManual {
         System.out.println("  q         - Quitter");
         System.out.println();
         
-        try {
-            irc.SentenceJvnCustom sentence = new irc.SentenceJvnCustom(objectName);
-            Scanner scanner = new Scanner(System.in);
-            
+        try (Scanner scanner = new Scanner(System.in)) {
+            // Créer ou récupérer l'objet Sentence
+            AnnotationSentence sentence = null;
+            try {
+                // Essayer de récupérer l'objet s'il existe
+                JvnObject jo = JvnServerImpl.jvnGetServer().jvnLookupObject(objectName);
+                sentence = (AnnotationSentence) JvnProxy.newInstance(jo, AnnotationSentence.class);
+                System.out.println("Objet '" + objectName + "' récupéré");
+            } catch (JvnException e) {
+                // Si l'objet n'existe pas, le créer
+                JvnObject jo = JvnServerImpl.jvnGetServer().jvnCreateObject(new Sentence());
+                sentence = (AnnotationSentence) JvnProxy.newInstance(jo, AnnotationSentence.class);
+                JvnServerImpl.jvnGetServer().jvnRegisterObject(objectName, jo);
+                System.out.println("Nouvel objet '" + objectName + "' créé");
+            }
+
             while (true) {
                 System.out.print(clientName + "> ");
                 String input = scanner.nextLine().trim();
@@ -53,10 +69,15 @@ public class TestIrcJvnManual {
                                 try {
                                     int seconds = Integer.parseInt(parts[1]);
                                     System.out.println("Début de la lecture longue (" + seconds + "s)...");
-                                    String content = sentence.simulateLongReadOperation(seconds * 1000);
-                                    System.out.println("Contenu lu (après " + seconds + "s): '" + content + "'");
+                                    
+                                    String content = sentence.read();
+                                    System.out.println("Lu: '" + content + "' - garde le verrou " + seconds + "s");
+                                    Thread.sleep(seconds * 1000);
+                                    System.out.println("Lecture longue terminée.");
                                 } catch (NumberFormatException e) {
                                     System.out.println("Usage: r <secondes> (nombre entier)");
+                                } catch (InterruptedException e) {
+                                    System.out.println("Lecture interrompue");
                                 }
                             } else {
                                 System.out.println("Usage: r [secondes]");
@@ -88,11 +109,15 @@ public class TestIrcJvnManual {
                                     
                                     // Écriture longue
                                     System.out.println("Début de l'écriture longue (" + seconds + "s)...");
-                                    sentence.simulateLongWriteOperation(longText, seconds * 1000);
+                                    sentence.write(longText);
+                                    System.out.println("Écrit: '" + longText + "' - garde le verrou " + seconds + "s");
+                                    Thread.sleep(seconds * 1000);
                                     System.out.println("Écriture longue terminée.");
                                     break;
                                 } catch (NumberFormatException e) {
                                     // Le dernier élément n'est pas un nombre, traiter comme texte normal
+                                } catch (InterruptedException e) {
+                                    System.out.println("Écriture interrompue");
                                 }
                             }
                             
@@ -101,7 +126,6 @@ public class TestIrcJvnManual {
                             sentence.write(text);
                             System.out.println("Texte écrit: '" + text + "'");
                             break;
-                            
 
                         case "obj":
                         case "object":
@@ -111,14 +135,23 @@ public class TestIrcJvnManual {
                             }
                             String newObjectName = parts[1];
                             System.out.println("Changement vers l'objet: " + newObjectName);
-                            sentence = new irc.SentenceJvnCustom(newObjectName);
-                            System.out.println("Maintenant connecté à l'objet: " + sentence.getObjectName());
+                            
+                            try {
+                                JvnObject jo = JvnServerImpl.jvnGetServer().jvnLookupObject(newObjectName);
+                                sentence = (AnnotationSentence) JvnProxy.newInstance(jo, AnnotationSentence.class);
+                                System.out.println("Objet '" + newObjectName + "' récupéré");
+                            } catch (JvnException e) {
+                                JvnObject jo = JvnServerImpl.jvnGetServer().jvnCreateObject(new Sentence());
+                                sentence = (AnnotationSentence) JvnProxy.newInstance(jo, AnnotationSentence.class);
+                                JvnServerImpl.jvnGetServer().jvnRegisterObject(newObjectName, jo);
+                                System.out.println("Nouvel objet '" + newObjectName + "' créé");
+                            }
+                            objectName = newObjectName;
                             break;
                             
                         case "info":
                             System.out.println("=== Informations Objet ===");
-                            System.out.println("Nom: " + sentence.getObjectName());
-                            System.out.println("ID: " + sentence.getObjectId());
+                            System.out.println("Nom de l'objet: " + objectName);
                             System.out.println("Client: " + clientName);
                             break;
                             
