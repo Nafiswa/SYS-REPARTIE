@@ -1,12 +1,25 @@
 package jvn;
 
 import java.io.Serializable;
+import java.rmi.RemoteException;
 
 public class JvnObjectImpl implements JvnObject {
     private int jvnObjectId;
     private Serializable sharedObject;
     private transient JvnLocalServer jvnServer;
     private transient LockState lockState = LockState.NL;
+    
+    /**
+     * Réinitialise l'état du verrou après une reconnexion
+     */
+    public synchronized void resetLockState() {
+        System.out.println("🔓 CLIENT: Réinitialisation du verrou pour l'objet " + jvnObjectId);
+        this.lockState = LockState.NL;
+    }
+    
+    public LockState getLockState() {
+        return this.lockState;
+    }
     
     public enum LockState {
         NL,     // no local lock
@@ -63,6 +76,13 @@ public class JvnObjectImpl implements JvnObject {
     
     @Override
     public synchronized void jvnLockWrite() throws JvnException {
+        // Vérifier que nous avons une connexion active avant de continuer
+        try {
+            ((JvnServerImpl)jvnServer).getCoordinator().jvnPing();
+        } catch (RemoteException e) {
+            throw new JvnException("Impossible de prendre le verrou d'écriture : coordinateur non disponible");
+        }
+        
         switch (lockState) {
             case NL:
                 // SEULEMENT dans ce cas, demander au coordinateur

@@ -38,6 +38,35 @@ public class JvnServerImpl extends UnicastRemoteObject implements JvnRemoteServe
             System.setProperty("java.rmi.server.hostname", host);
         }
         
+        connectToCoordinator(host, port);
+        
+        // Démarrer le thread de surveillance de la connexion
+        Thread healthCheck = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(3000); // Vérifier toutes les 3 secondes
+                    if (coordinator != null) {
+                        try {
+                            coordinator.jvnPing(); // Test de connexion sans effet de bord
+                        } catch (Exception e) {
+                            System.out.println("❌ SERVER: Perte de connexion au coordinateur, tentative de reconnexion...");
+                            try {
+                                connectToCoordinator(host, port);
+                            } catch (RemoteException re) {
+                                System.out.println("❌ SERVER: Échec de la reconnexion: " + re.getMessage());
+                            }
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        }, "JVN-HealthCheck");
+        healthCheck.setDaemon(true);
+        healthCheck.start();
+    }
+    
+    private void connectToCoordinator(String host, int port) throws RemoteException {
         System.out.println("SERVER: Tentative de connexion au coordinateur sur " + host + ":" + port);
         
         Exception last = null;
@@ -45,7 +74,14 @@ public class JvnServerImpl extends UnicastRemoteObject implements JvnRemoteServe
             try {
                 Registry registry = LocateRegistry.getRegistry(host, port);
                 coordinator = (JvnRemoteCoord) registry.lookup("JvnCoordinator");
-                System.out.println("SERVER: Connecté au coordinateur");
+                
+                // Réinitialiser les états des objets locaux après reconnexion
+                System.out.println("🔄 SERVER: Réinitialisation des objets après reconnexion...");
+                for (JvnObjectImpl obj : localObjects.values()) {
+                    obj.resetLockState();  // On va ajouter cette méthode
+                }
+                
+                System.out.println("✅ SERVER: Connecté au coordinateur");
                 return;
             } catch (Exception e) {
                 last = e;
@@ -177,6 +213,27 @@ public class JvnServerImpl extends UnicastRemoteObject implements JvnRemoteServe
     public String getServerId() throws RemoteException {
         return this.serverId;
     }
+    
+    public JvnRemoteCoord getCoordinator() {
+        return this.coordinator;
+    }
+    
+    @Override
+    public void jvnFlushObject(int joi) throws JvnException {
+        System.out.println("🧹 SERVER: Flushing objet " + joi);
+        JvnObjectImpl obj = localObjects.get(joi);
+        if (obj != null) {
+            // Si l'objet est en mode écriture (WLC ou WLT), on doit d'abord le libérer
+            if (obj.getLockState() == JvnObjectImpl.LockState.WLC || 
+                obj.getLockState() == JvnObjectImpl.LockState.WLT) {
+                throw new JvnException("Impossible de flusher un objet en mode écriture. Libérez d'abord le verrou d'écriture.");
+            }
+            // Retirer l'objet du cache local
+            localObjects.remove(joi);
+            System.out.println("✨ SERVER: Objet " + joi + " retiré du cache local");
+        }
+    }
+    
 }
 
 

@@ -21,8 +21,10 @@ public class TestIrcJvnManual {
         System.out.println("  r SECONDS - Lecture longue pendant SECONDS secondes");
         System.out.println("  w TEXT    - Écrire TEXT");
         System.out.println("  w TEXT SECONDS - Écriture longue avec verrou pendant SECONDS secondes");
+        System.out.println("  f         - Flusher l'objet (libérer de la mémoire)");
         System.out.println("  obj NOUVEAU_NOM - Changer d'objet");
         System.out.println("  info      - Afficher info sur l'objet actuel");
+        System.out.println("  wait N    - Attendre N secondes (pour tester la récupération)");
         System.out.println("  q         - Quitter");
         System.out.println();
         
@@ -153,6 +155,40 @@ public class TestIrcJvnManual {
                             System.out.println("=== Informations Objet ===");
                             System.out.println("Nom de l'objet: " + objectName);
                             System.out.println("Client: " + clientName);
+                            break;
+                            
+                        case "f":
+                        case "flush":
+                            try {
+                                // Récupérer l'ID de l'objet via le proxy
+                                JvnObject jo = JvnServerImpl.jvnGetServer().jvnLookupObject(objectName);
+                                JvnServerImpl.jvnGetServer().jvnFlushObject(jo.jvnGetObjectId());
+                                
+                                // Recréer une nouvelle instance du proxy après le flush
+                                jo = JvnServerImpl.jvnGetServer().jvnLookupObject(objectName);
+                                sentence = (AnnotationSentence) JvnProxy.newInstance(jo, AnnotationSentence.class);
+                                
+                                System.out.println("Objet '" + objectName + "' flushé et rechargé depuis le serveur");
+                            } catch (JvnException e) {
+                                System.out.println("Erreur lors du flush: " + e.getMessage());
+                            }
+                            break;
+                            
+                        case "wait":
+                            if (parts.length != 2) {
+                                System.out.println("Usage: wait <secondes>");
+                                break;
+                            }
+                            try {
+                                int seconds = Integer.parseInt(parts[1]);
+                                System.out.println("Attente de " + seconds + " secondes...");
+                                Thread.sleep(seconds * 1000);
+                                System.out.println("Attente terminée");
+                            } catch (NumberFormatException e) {
+                                System.out.println("Le nombre de secondes doit être un entier");
+                            } catch (InterruptedException e) {
+                                System.out.println("Attente interrompue");
+                            }
                             break;
                             
                         default:

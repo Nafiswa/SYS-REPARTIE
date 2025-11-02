@@ -13,7 +13,7 @@ import annotation.Write;
 /**
  * Version JVN de Sentence pour démonstration
  */
-public class SentenceJvn implements AnnotationSentence,Serializable {
+public class SentenceJvn implements Serializable {
     private JvnObject jvnSentence;
     private JvnLocalServer jvnServer;
     

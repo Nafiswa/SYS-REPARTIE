@@ -18,8 +18,76 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class JvnCoordImpl 	
               extends UnicastRemoteObject 
-							implements JvnRemoteCoord{
+							implements JvnRemoteCoord {
+    
+    private static final String SAVE_FILE = "coordinator_state.bin";
 	
+	@Override
+	public void jvnPing() throws RemoteException {
+		// Cette méthode ne fait rien, elle sert juste à vérifier si le coordinateur est vivant
+		// Si le coordinateur est mort, une RemoteException sera lancée automatiquement par RMI
+	}
+    
+    // Sauvegarde l'état du coordinateur sur le disque
+    private synchronized void saveState() {
+        try (java.io.ObjectOutputStream out = new java.io.ObjectOutputStream(
+                new java.io.FileOutputStream(SAVE_FILE))) {
+            // Créer un objet qui contient tout l'état
+            java.util.HashMap<String, Object> state = new java.util.HashMap<>();
+            state.put("nextObjectId", nextObjectId.get());
+            state.put("objects", objects);
+            state.put("nameToId", nameToId);
+            
+            // Sauvegarder l'état
+            out.writeObject(state);
+            System.out.println("💾 COORD: État sauvegardé sur disque");
+        } catch (Exception e) {
+            System.err.println("❌ COORD: Erreur lors de la sauvegarde: " + e.getMessage());
+        }
+    }
+    
+    // Restaure l'état du coordinateur depuis le disque
+    @SuppressWarnings("unchecked")
+    private synchronized void loadState() {
+        java.io.File file = new java.io.File(SAVE_FILE);
+        if (!file.exists()) {
+            System.out.println("ℹ️ COORD: Pas de fichier d'état existant, démarrage à zéro");
+            return;
+        }
+        
+        try (java.io.ObjectInputStream in = new java.io.ObjectInputStream(
+                new java.io.FileInputStream(file))) {
+            // Lire l'état
+            java.util.HashMap<String, Object> state = 
+                (java.util.HashMap<String, Object>) in.readObject();
+            
+            // Restaurer l'état
+            this.nextObjectId.set((Integer) state.get("nextObjectId"));
+            this.objects = (ConcurrentHashMap<Integer, ObjectInfo>) state.get("objects");
+            this.nameToId = (ConcurrentHashMap<String, Integer>) state.get("nameToId");
+            
+            // Réinitialiser les connexions car elles ne sont pas sérialisables
+            for (ObjectInfo info : objects.values()) {
+                // Réinitialiser complètement l'état de verrouillage
+                info.writer = null;
+                info.writerId = null;
+                info.readers = java.util.concurrent.ConcurrentHashMap.newKeySet();
+                info.readerIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+                
+                System.out.println("🔓 COORD: Réinitialisation des verrous pour l'objet");
+            }
+            
+            System.out.println("📂 COORD: État restauré depuis le disque");
+            System.out.println("   - " + objects.size() + " objets");
+            System.out.println("   - Prochain ID: " + nextObjectId.get());
+        } catch (Exception e) {
+            System.err.println("❌ COORD: Erreur lors de la restauration: " + e.getMessage());
+            // En cas d'erreur, on repart à zéro
+            this.nextObjectId = new AtomicInteger(1);
+            this.objects = new ConcurrentHashMap<>();
+            this.nameToId = new ConcurrentHashMap<>();
+        }
+    }
 
   /**
 	 * 
@@ -31,11 +99,13 @@ public class JvnCoordImpl
   private ConcurrentHashMap<String, Integer> nameToId;
   
   // Classe interne pour les informations d'objets
-  private class ObjectInfo {
+  private static class ObjectInfo implements Serializable {
+      private static final long serialVersionUID = 1L;
+      
       public Serializable object;
-      public JvnRemoteServer writer;
+      public transient JvnRemoteServer writer;  // transient car RMI n'est pas sérialisable
       public String writerId;
-      public java.util.Set<JvnRemoteServer> readers;
+      public transient java.util.Set<JvnRemoteServer> readers;  // transient car RMI n'est pas sérialisable
       public java.util.Set<String> readerIds;
       
       public ObjectInfo(Serializable obj) {
@@ -45,6 +115,55 @@ public class JvnCoordImpl
           this.readers = java.util.concurrent.ConcurrentHashMap.newKeySet();
           this.readerIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
       }
+      
+      // Vérifie si un serveur est toujours vivant
+      public boolean isServerAlive(JvnRemoteServer server) {
+          if (server == null) return false;
+          try {
+              server.getServerId();
+              return true;
+          } catch (RemoteException e) {
+              return false;
+          }
+      }
+      
+      // Nettoie les références aux serveurs morts
+      public void cleanDeadServers() {
+          boolean hasCleanedSomething = false;
+          
+          // Vérifie le writer
+          if (writer != null) {
+              try {
+                  writer.getServerId();
+              } catch (RemoteException e) {
+                  System.out.println("🔥 COORD: Writer " + writerId + " ne répond plus, nettoyage...");
+                  writer = null;
+                  writerId = null;
+                  hasCleanedSomething = true;
+              }
+          }
+          
+          // Vérifie les readers
+          int initialSize = readers.size();
+          readers.removeIf(server -> {
+              try {
+                  server.getServerId();
+                  return false;
+              } catch (RemoteException e) {
+                  System.out.println("🔥 COORD: Un reader ne répond plus, suppression...");
+                  return true;
+              }
+          });
+          
+          if (readers.size() < initialSize) {
+              hasCleanedSomething = true;
+              System.out.println("🧹 COORD: " + (initialSize - readers.size()) + " readers morts ont été nettoyés");
+          }
+          
+          if (!hasCleanedSomething) {
+              System.out.println("✅ COORD: Tous les clients sont actifs (" + readers.size() + " readers, writer: " + (writer != null ? "oui" : "non") + ")");
+          }
+      }
   }
 
 /**
@@ -53,10 +172,37 @@ public class JvnCoordImpl
   **/
 	public JvnCoordImpl() throws RemoteException {
 		super();
+		
+		// Initialiser les structures
 		this.nextObjectId = new AtomicInteger(1);
 		this.objects = new ConcurrentHashMap<Integer, ObjectInfo>();
 		this.nameToId = new ConcurrentHashMap<String, Integer>();
+		
+		// Restaurer l'état depuis le disque
+		loadState();
         System.out.println("COORDINATEUR: Démarré");
+        
+        // Démarrer le thread de nettoyage des serveurs morts et de sauvegarde
+        Thread cleanupThread = new Thread(() -> {
+            while (true) {
+                try {
+                    // Nettoyer tous les objets
+                    System.out.println("\n🔍 COORD: Vérification des clients...");
+                    for (ObjectInfo info : objects.values()) {
+                        info.cleanDeadServers();
+                    }
+                    
+                    // Sauvegarder l'état périodiquement
+                    saveState();
+                    
+                    Thread.sleep(2000); // Vérifier et sauvegarder toutes les 2 secondes
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        }, "JVN-Cleanup");
+        cleanupThread.setDaemon(true);
+        cleanupThread.start();
 	}
 
   /**
@@ -96,6 +242,9 @@ public class JvnCoordImpl
       ObjectInfo info = new ObjectInfo(o);
       objects.put(joi, info);
       nameToId.put(jon, joi);
+      
+      // Sauvegarder l'état après modification
+      saveState();
       
       System.out.println("COORDINATEUR: Objet enregistré avec succès");
     } catch (JvnException e) {

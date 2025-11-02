@@ -40,12 +40,19 @@ public interface JvnLocalServer {
 	/**
 	* Get the reference of a JVN object associated to a symbolic name
 	* @param jon : the JVN object symbolic name
-	* @return the JVN object 
+	* @return the JvN object 
 	* @throws JvnException
 	**/
 	public  JvnObject jvnLookupObject(String jon)
 	throws jvn.JvnException ; 
 	
+	/**
+	* Flush an object from local cache
+	* @param joi : the JVN object id
+	* @throws JvnException
+	**/
+	public void jvnFlushObject(int joi)
+	throws jvn.JvnException;
 	
 	/**
 	* Get a Read lock on a JVN object 
@@ -72,6 +79,5 @@ public interface JvnLocalServer {
     **/
    public  void jvnTerminate()
    throws jvn.JvnException; 
-}
 
- 
+}

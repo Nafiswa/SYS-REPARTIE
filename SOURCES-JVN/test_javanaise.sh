@@ -2,8 +2,6 @@
 
 echo "=== Test Javanaise Version 1 ==="
 
-# Aller dans le répertoire du projet
-cd /Users/walidnafis/Desktop/SYS-REPARTIE/SOURCES-JVN
 
 # Configuration RMI
 RMI_PORT=10999  # Utiliser un port différent pour éviter les conflits
@@ -16,7 +14,7 @@ RMI_PROPS+=" -Dsun.rmi.transport.tcp.readTimeout=30000"
 
 # Compiler les classes
 echo "Compilation..."
-javac -d bin src/jvn/*.java src/irc/*.java src/*.java
+javac -d bin src/annotation/*.java src/jvn/*.java src/irc/*.java src/*.java
 
 # Arrêter les processus précédents
 echo "Nettoyage des processus précédents..."

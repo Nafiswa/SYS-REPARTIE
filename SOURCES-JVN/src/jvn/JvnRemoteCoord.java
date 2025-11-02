@@ -20,6 +20,13 @@ import java.io.*;
 public interface JvnRemoteCoord extends Remote {
 
 	/**
+	* Test if the coordinator is alive
+	* @throws java.rmi.RemoteException if coordinator is not responding
+	**/
+	public void jvnPing()
+	throws java.rmi.RemoteException;
+
+	/**
 	*  Allocate a NEW JVN object id (usually allocated to a 
   *  newly created JVN object)
 	* @throws java.rmi.RemoteException,JvnException
