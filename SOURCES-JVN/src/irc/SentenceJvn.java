@@ -1,13 +1,13 @@
 package irc;
 
+import annotation.Read;
+import annotation.Write;
 import java.io.Serializable;
 import jvn.JvnException;
 import jvn.JvnLocalServer;
 import jvn.JvnObject;
-import jvn.JvnServerImpl;
 import jvn.JvnObjectImpl;
-import annotation.Read;
-import annotation.Write;
+import jvn.JvnServerImpl;
 
 
 /**
@@ -54,6 +54,15 @@ public class SentenceJvn implements AnnotationSentence,Serializable {
             sentence.write(text);
             System.out.println("CLIENT: Écriture effectuée");
     }
+    
+    @Write
+    public void writeSlow(String text, int seconds) throws JvnException {
+        System.out.println("CLIENT: Demande écriture longue - '" + text + "' (" + seconds + "s)");
+        Sentence sentence = (Sentence) jvnSentence.jvnGetSharedObject();
+        sentence.writeSlow(text, seconds);
+        System.out.println("CLIENT: Écriture longue effectuée");
+    }
+    
     @Read
     public String read() throws JvnException {
         System.out.println("CLIENT: Demande lecture");
@@ -62,6 +71,15 @@ public class SentenceJvn implements AnnotationSentence,Serializable {
             String result = sentence.read();
             System.out.println("CLIENT: Lecture effectuée - '" + result + "'");
             return result;
+    }
+    
+    @Read
+    public String readSlow(int seconds) throws JvnException {
+        System.out.println("CLIENT: Demande lecture longue (" + seconds + "s)");
+        Sentence sentence = (Sentence) jvnSentence.jvnGetSharedObject();
+        String result = sentence.readSlow(seconds);
+        System.out.println("CLIENT: Lecture longue effectuée - '" + result + "'");
+        return result;
     }
     
     /**

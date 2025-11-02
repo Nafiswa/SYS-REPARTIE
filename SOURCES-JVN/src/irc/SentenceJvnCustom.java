@@ -1,11 +1,11 @@
 package irc;
 
-import java.io.Serializable;
-import jvn.JvnException;
-import jvn.JvnServerImpl;
-import jvn.JvnObject;
 import annotation.Read;
 import annotation.Write;
+import java.io.Serializable;
+import jvn.JvnException;
+import jvn.JvnObject;
+import jvn.JvnServerImpl;
 
 /**
  * Version JVN de Sentence configurable avec nom d'objet personnalisé utilisant les annotations et proxy
@@ -49,6 +49,32 @@ public class SentenceJvnCustom implements ISentenceJvnCustom, Serializable {
     public String read() {
         System.out.println("📖 CLIENT: Lu '" + data + "'");
         return data;
+    }
+    
+    @Write
+    public void writeSlow(String text, int seconds) throws JvnException {
+        this.data = text;
+        System.out.println("📝 CLIENT: Écrit '" + text + "' - Garde verrou " + seconds + "s");
+        try {
+            Thread.sleep(seconds * 1000L);
+            System.out.println("✅ CLIENT: Écriture longue TERMINÉE");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new JvnException("Interruption pendant l'écriture longue", e);
+        }
+    }
+    
+    @Read
+    public String readSlow(int seconds) throws JvnException {
+        System.out.println("📖 CLIENT: Lu '" + data + "' - Garde verrou " + seconds + "s");
+        try {
+            Thread.sleep(seconds * 1000L);
+            System.out.println("✅ CLIENT: Lecture longue TERMINÉE");
+            return data;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new JvnException("Interruption pendant la lecture longue", e);
+        }
     }
 
     @Write

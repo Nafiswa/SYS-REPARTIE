@@ -1,10 +1,10 @@
-import java.util.Scanner;
-import jvn.JvnException;
-import jvn.JvnServerImpl;
-import jvn.JvnObject;
-import jvn.JvnProxy;
 import irc.AnnotationSentence;
 import irc.Sentence;
+import java.util.Scanner;
+import jvn.JvnException;
+import jvn.JvnObject;
+import jvn.JvnProxy;
+import jvn.JvnServerImpl;
 
 /**
  * Test interactif pour Javanaise avec l'objet Sentence
@@ -70,14 +70,12 @@ public class TestIrcJvnManual {
                                     int seconds = Integer.parseInt(parts[1]);
                                     System.out.println("Début de la lecture longue (" + seconds + "s)...");
                                     
-                                    String content = sentence.read();
-                                    System.out.println("Lu: '" + content + "' - garde le verrou " + seconds + "s");
-                                    Thread.sleep(seconds * 1000);
+                                    // CORRECTION: Utiliser readSlow qui garde le verrou pendant le sleep
+                                    String content = sentence.readSlow(seconds);
+                                    System.out.println("Contenu lu: '" + content + "'");
                                     System.out.println("Lecture longue terminée.");
                                 } catch (NumberFormatException e) {
                                     System.out.println("Usage: r <secondes> (nombre entier)");
-                                } catch (InterruptedException e) {
-                                    System.out.println("Lecture interrompue");
                                 }
                             } else {
                                 System.out.println("Usage: r [secondes]");
@@ -107,17 +105,14 @@ public class TestIrcJvnManual {
                                     }
                                     String longText = textBuilder.toString();
                                     
-                                    // Écriture longue
+                                    // CORRECTION: Utiliser writeSlow qui garde le verrou pendant le sleep
                                     System.out.println("Début de l'écriture longue (" + seconds + "s)...");
-                                    sentence.write(longText);
-                                    System.out.println("Écrit: '" + longText + "' - garde le verrou " + seconds + "s");
-                                    Thread.sleep(seconds * 1000);
+                                    sentence.writeSlow(longText, seconds);
+                                    System.out.println("Écrit: '" + longText + "'");
                                     System.out.println("Écriture longue terminée.");
                                     break;
                                 } catch (NumberFormatException e) {
                                     // Le dernier élément n'est pas un nombre, traiter comme texte normal
-                                } catch (InterruptedException e) {
-                                    System.out.println("Écriture interrompue");
                                 }
                             }
                             

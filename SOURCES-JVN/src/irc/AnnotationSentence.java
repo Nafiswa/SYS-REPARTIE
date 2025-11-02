@@ -1,6 +1,6 @@
 package irc;
-import jvn.JvnException;
 import annotation.*;
+import jvn.JvnException;
 
 public interface AnnotationSentence {
 
@@ -9,4 +9,10 @@ public interface AnnotationSentence {
 
     @Write
     void write(String text)throws JvnException;
+    
+    @Write
+    void writeSlow(String text, int seconds) throws JvnException;
+    
+    @Read
+    String readSlow(int seconds) throws JvnException;
 }
