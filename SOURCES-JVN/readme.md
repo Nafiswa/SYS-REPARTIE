@@ -1,4 +1,12 @@
 
+
+
+
+Pour les extensions, comme cité dans la soutenance, on a toujours quelques soucis
+mais la gestion de panne du coordinateur fonctionne.
+Pour trouver cette version , il est sur la branche dev et a compilé de la même manière (les instructions ci-dessous)
+
+
 ## Lancement
 1. **Terminal 1:** `./start_coordinator.sh`
 2. **Terminal 2:** `./start_client.sh Client1 IRC_SENTENCE`
