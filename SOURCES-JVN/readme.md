@@ -16,14 +16,16 @@ Pour trouver cette version , il est sur la branche dev et a compilé de la même
 
 ## Commandes clients
 - `r` : Lire | `w <texte>` : Écrire | `q` : Quitter
-- `long <texte> < x:secondes>` : Écriture avec verrou long x seconde
+- `w <texte> < x:secondes>` : Écriture avec verrou long x seconde
+- `r < x:secondes>` : lecture avec verrou long x seconde
 - `obj <nom>` : Changer d'objet
 
 ## Test rapide
 1. Client1: `w Hello Client1`
 2. Client2: `r` → doit voir "Hello Client1"
-3. Client1: `long "Working..." 5` → garde le verrou 5s
 4. Client2: `w Test` → doit attendre que Client1 libère
+4. Client2: `w Test2 20` → doit attendre que Client1 libère pendant 20 secondes
+
 
 ## Autres objets disponibles
 - `IRC_SENTENCE` | `DOCUMENT_1` | `SHARED_TEXT`
